@@ -73,6 +73,14 @@ public class RequestApiController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    /**
+     * Retrieves the count of service requests matching the provided search
+     * criteria.
+     *
+     * @param searchRequest The search criteria to be used to fetch the count.
+     * @return The count of matching service requests wrapped in a ResponseEntity.
+     * @throws IOException If an I/O error occurs during processing.
+     */
     @RequestMapping(value = "/_count", method = RequestMethod.POST)
     public ResponseEntity<CountResponse> requestsCountPost(@Valid @RequestBody SearchRequest searchRequest)
             throws IOException {
