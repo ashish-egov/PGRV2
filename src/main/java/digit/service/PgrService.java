@@ -113,6 +113,7 @@ public class PgrService {
         // Enrich the search request with additional data
         enrichmentService.enrichSearchRequest(requestInfo, criteria);
 
+        // Get the sorted pgr entities
         List<PGREntity> sortedServiceWrappers = pgrRepository.getSortedServiceWrappers(requestInfo, criteria);
 
         // Return the response with the sorted service wrappers
