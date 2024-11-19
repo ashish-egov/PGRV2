@@ -122,27 +122,55 @@ public class PgrService {
         return pgrUtils.convertToServiceResponse(requestInfo, sortedServiceWrappers);
     }
 
+    /**
+     * Updates an existing service request and returns the response. This method
+     * first validates the request,
+     * enriches the request with additional data, updates the workflow status, and
+     * then pushes the request to
+     * the update topic. The response includes the updated service request.
+     *
+     * @param request The service request to update.
+     * @return The updated service response.
+     */
     public ServiceResponse update(ServiceRequest request) {
+        // Validate the update request
         pgrValidator.validateUpdate(request);
 
+        // Enrich the update request
         enrichmentService.enrichUpdateRequest(request);
 
+        // Update workflow status
         workflowService.updateWorkflowStatus(request);
 
+        // Push to Kafka topic
         producer.push(config.getPgrUpdateTopic(), request.getPgrEntity());
+
+        // Create and return the ServiceResponse
         return pgrUtils.convertToServiceResponse(request.getRequestInfo(),
                 Collections.singletonList(request.getPgrEntity()));
     }
 
     public CountResponse count(SearchRequest request) {
+
+        // Validate the search criteria
         RequestSearchCriteria criteria = request.getCriteria();
+
+        // Enrich the search request with additional data
         RequestInfo requestInfo = request.getRequestInfo();
+
+        // Validate the search criteria
         criteria.setIsPlainSearch(false);
+
+        // Get the count
         Integer count = pgrRepository.getCount(criteria);
+
+        // Create and return the CountResponse
         CountResponse countResponse = CountResponse.builder()
                 .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(
                         requestInfo, true))
                 .count(count).build();
+
+        // Return the response
         return countResponse;
     }
 
