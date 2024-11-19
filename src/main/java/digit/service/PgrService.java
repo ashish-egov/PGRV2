@@ -47,9 +47,6 @@ public class PgrService {
     @Autowired
     private PGRUtils pgrUtils;
 
-    @Autowired
-    private UserService userService;
-
     /**
      * Creates a new service request based on the provided request body.
      *
@@ -150,8 +147,15 @@ public class PgrService {
                 Collections.singletonList(request.getPgrEntity()));
     }
 
+    /**
+     * Retrieves the count of service requests matching the provided search
+     * criteria.
+     * 
+     * @param request The search request containing the search criteria.
+     * @return The count of matching service requests wrapped in a
+     *         {@link CountResponse}.
+     */
     public CountResponse count(SearchRequest request) {
-
         // Validate the search criteria
         RequestSearchCriteria criteria = request.getCriteria();
 
