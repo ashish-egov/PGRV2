@@ -1,10 +1,7 @@
 package digit.service;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
 
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.response.ResponseInfo;
@@ -13,10 +10,14 @@ import org.springframework.stereotype.Component;
 
 import digit.config.Configuration;
 import digit.kafka.Producer;
+import digit.repository.PGRRepository;
+import digit.util.PGRUtils;
 import digit.util.ResponseInfoFactory;
 import digit.validator.PgrValidator;
+import digit.web.models.CountResponse;
+import digit.web.models.PGREntity;
 import digit.web.models.RequestSearchCriteria;
-import digit.web.models.Service;
+import digit.web.models.SearchRequest;
 import digit.web.models.ServiceRequest;
 import digit.web.models.ServiceResponse;
 
@@ -39,6 +40,15 @@ public class PgrService {
 
     @Autowired
     private ResponseInfoFactory responseInfoFactory;
+
+    @Autowired
+    private PGRRepository pgrRepository;
+
+    @Autowired
+    private PGRUtils pgrUtils;
+
+    @Autowired
+    private UserService userService;
 
     /**
      * Creates a new service request based on the provided request body.
@@ -96,26 +106,44 @@ public class PgrService {
      *         additional metadata
      *         like response status and messages.
      */
-    public ServiceResponse search(RequestInfo requestInfo, RequestSearchCriteria criteria) {
-        // Validate the search criteria using a validator
+    public ServiceResponse search(SearchRequest searchRequest) {
+        RequestInfo requestInfo = searchRequest.getRequestInfo();
+        RequestSearchCriteria criteria = searchRequest.getCriteria();
+
+        // Validate the search criteria
         pgrValidator.validateSearch(requestInfo, criteria);
 
-        // Enrich the search request, modifying the criteria or adding necessary data
+        // Enrich the search request with additional data
         enrichmentService.enrichSearchRequest(requestInfo, criteria);
 
-        // Create a ResponseInfo object from the incoming request info, indicating a
-        // successful response (true)
-        ResponseInfo responseInfo = responseInfoFactory.createResponseInfoFromRequestInfo(requestInfo, true);
+        List<PGREntity> sortedServiceWrappers = pgrRepository.getSortedServiceWrappers(requestInfo, criteria);
 
-        // Build a ServiceResponse object with the responseInfo and an empty list of PGR
-        // entities
-        ServiceResponse response = ServiceResponse.builder()
-                .responseInfo(responseInfo) // Set the response information
-                .pgREntities(new ArrayList<>()) // TODO : Make search service to return list of PGR entities
-                .build();
+        // Return the response with the sorted service wrappers
+        return pgrUtils.convertToServiceResponse(requestInfo, sortedServiceWrappers);
+    }
 
-        // Return the created ServiceResponse object
-        return response;
+    public ServiceResponse update(ServiceRequest request) {
+        pgrValidator.validateUpdate(request);
+
+        enrichmentService.enrichUpdateRequest(request);
+
+        workflowService.updateWorkflowStatus(request);
+
+        producer.push(config.getPgrUpdateTopic(), request.getPgrEntity());
+        return pgrUtils.convertToServiceResponse(request.getRequestInfo(),
+                Collections.singletonList(request.getPgrEntity()));
+    }
+
+    public CountResponse count(SearchRequest request) {
+        RequestSearchCriteria criteria = request.getCriteria();
+        RequestInfo requestInfo = request.getRequestInfo();
+        criteria.setIsPlainSearch(false);
+        Integer count = pgrRepository.getCount(criteria);
+        CountResponse countResponse = CountResponse.builder()
+                .responseInfo(responseInfoFactory.createResponseInfoFromRequestInfo(
+                        requestInfo, true))
+                .count(count).build();
+        return countResponse;
     }
 
 }

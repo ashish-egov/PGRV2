@@ -47,29 +47,64 @@ public class WorkflowService {
     @Autowired
     private ObjectMapper mapper;
 
+    /**
+     * Updates the workflow status of the given service request by interacting with
+     * the workflow service.
+     *
+     * @param serviceRequest The service request containing the workflow details to
+     *                       be updated.
+     * @return The updated application status from the workflow.
+     */
     public String updateWorkflowStatus(ServiceRequest serviceRequest) {
+        // Prepare the ProcessInstance object for the PGR service based on the service
+        // request
         ProcessInstance processInstance = getProcessInstanceForPGR(serviceRequest);
-        ProcessInstanceRequest workflowRequest = new ProcessInstanceRequest(serviceRequest.getRequestInfo(),
+
+        // Create a ProcessInstanceRequest to send to the workflow service
+        ProcessInstanceRequest workflowRequest = new ProcessInstanceRequest(
+                serviceRequest.getRequestInfo(),
                 Collections.singletonList(processInstance));
+
+        // Call the workflow service to update the process and retrieve the current
+        // state
         State state = callWorkFlow(workflowRequest);
+
+        // Update the application status in the service request with the status from the
+        // workflow response
         serviceRequest.getPgrEntity().getService().setApplicationStatus(state.getApplicationStatus());
+
+        // Return the updated application status
         return state.getApplicationStatus();
     }
 
+    /**
+     * Constructs the URL with query parameters for searching the workflow service
+     * for a specific tenant and business service.
+     *
+     * @param tenantId        The tenant ID to include in the query.
+     * @param businessService The business service name to include in the query.
+     * @return A StringBuilder object containing the constructed URL.
+     */
     private StringBuilder getSearchURLWithParams(String tenantId, String businessService) {
-
+        // Initialize the URL with the workflow host configuration
         StringBuilder url = new StringBuilder(pgrConfiguration.getWfHost());
+
+        // Append the path for business service search
         url.append(pgrConfiguration.getWfBusinessServiceSearchPath());
+
+        // Add tenant ID as a query parameter
         url.append("?tenantId=");
         url.append(tenantId);
+
+        // Add business service name as a query parameter
         url.append("&businessServices=");
         url.append(businessService);
+
+        // Return the constructed URL
         return url;
     }
 
     public List<PGREntity> enrichWorkflow(RequestInfo requestInfo, List<PGREntity> serviceWrappers) {
-
-        // FIX ME FOR BULK SEARCH
         Map<String, List<PGREntity>> tenantIdToServiceWrapperMap = getTenantIdToServiceWrapperMap(serviceWrappers);
 
         List<PGREntity> enrichedServiceWrappers = new ArrayList<>();
@@ -109,9 +144,7 @@ public class WorkflowService {
 
             enrichedServiceWrappers.addAll(tenantSpecificWrappers);
         }
-
         return enrichedServiceWrappers;
-
     }
 
     private Map<String, List<PGREntity>> getTenantIdToServiceWrapperMap(List<PGREntity> pgrEntities) {
@@ -129,7 +162,6 @@ public class WorkflowService {
     }
 
     private ProcessInstance getProcessInstanceForPGR(ServiceRequest request) {
-
         Service service = request.getPgrEntity().getService();
         Workflow workflow = request.getPgrEntity().getWorkflow();
 
@@ -153,7 +185,6 @@ public class WorkflowService {
 
             processInstance.setAssignes(users);
         }
-
         return processInstance;
     }
 
@@ -178,9 +209,7 @@ public class WorkflowService {
     }
 
     public Map<String, Workflow> getWorkflow(List<ProcessInstance> processInstances) {
-
         Map<String, Workflow> businessIdToWorkflow = new HashMap<>();
-
         processInstances.forEach(processInstance -> {
             List<String> userIds = null;
 
@@ -197,12 +226,10 @@ public class WorkflowService {
 
             businessIdToWorkflow.put(processInstance.getBusinessId(), workflow);
         });
-
         return businessIdToWorkflow;
     }
 
     private State callWorkFlow(ProcessInstanceRequest workflowReq) {
-
         ProcessInstanceResponse response = null;
         StringBuilder url = new StringBuilder(
                 pgrConfiguration.getWfHost().concat(pgrConfiguration.getWfTransitionPath()));
@@ -212,7 +239,6 @@ public class WorkflowService {
     }
 
     public StringBuilder getprocessInstanceSearchURL(String tenantId, String serviceRequestId) {
-
         StringBuilder url = new StringBuilder(pgrConfiguration.getWfHost());
         url.append(pgrConfiguration.getWfProcessInstanceSearchPath());
         url.append("?tenantId=");
@@ -220,7 +246,6 @@ public class WorkflowService {
         url.append("&businessIds=");
         url.append(serviceRequestId);
         return url;
-
     }
 
 }

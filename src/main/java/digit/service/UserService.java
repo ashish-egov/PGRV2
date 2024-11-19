@@ -1,21 +1,22 @@
 package digit.service;
 
 import org.egov.common.contract.request.RequestInfo;
-import org.egov.common.contract.request.User;
-import org.egov.common.contract.user.CreateUserRequest;
-import org.egov.common.contract.user.UserDetailResponse;
-import org.egov.common.contract.user.UserSearchRequest;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import digit.config.Configuration;
+import digit.config.ErrorConstants;
 import digit.config.PGRConstants;
 import digit.util.UserUtil;
+import digit.web.models.CreateUserRequest;
 import digit.web.models.PGREntity;
 import digit.web.models.RequestSearchCriteria;
 import digit.web.models.ServiceRequest;
+import digit.web.models.User;
+import digit.web.models.UserDetailResponse;
+import digit.web.models.UserSearchRequest;
 
 import java.util.*;
 import java.util.function.Function;
@@ -32,6 +33,9 @@ public class UserService {
 
     @Autowired
     private PGRConstants pgrConstants;
+
+    @Autowired
+    private ErrorConstants errorConstants;
 
     /**
      * Calls the appropriate user service method based on the presence of account ID
@@ -81,7 +85,8 @@ public class UserService {
         User userServiceResponse = null;
 
         // Search on mobile number as user name
-        UserDetailResponse userDetailResponse = searchUser(userUtils.getStateLevelTenant(tenantId), null,
+        UserDetailResponse userDetailResponse = searchUser(userUtils.getStateLevelTenant(tenantId),
+                null,
                 user.getMobileNumber());
         if (!userDetailResponse.getUser().isEmpty()) {
             User userFromSearch = userDetailResponse.getUser().get(0);
@@ -105,7 +110,7 @@ public class UserService {
         UserDetailResponse userDetailResponse = searchUser(userUtils.getStateLevelTenant(tenantId), accountId, null);
 
         if (userDetailResponse.getUser().isEmpty())
-            throw new CustomException("INVALID_ACCOUNTID", "No user exist for the given accountId");
+            throw new CustomException(errorConstants.INVALID_ACCOUNTID, "No user exist for the given accountId");
 
         else
             request.getPgrEntity().getService().setCitizen(userDetailResponse.getUser().get(0));
@@ -157,8 +162,8 @@ public class UserService {
     private UserDetailResponse searchUser(String stateLevelTenant, String accountId, String userName) {
 
         UserSearchRequest userSearchRequest = new UserSearchRequest();
-        userSearchRequest.setActive(true);
         userSearchRequest.setUserType(pgrConstants.USERTYPE_CITIZEN);
+        userSearchRequest.setActive(true);
         userSearchRequest.setTenantId(stateLevelTenant);
 
         if (StringUtils.isEmpty(accountId) && StringUtils.isEmpty(userName))
@@ -172,7 +177,6 @@ public class UserService {
 
         StringBuilder uri = new StringBuilder(config.getUserHost()).append(config.getUserSearchEndpoint());
         return userUtils.userCall(userSearchRequest, uri);
-
     }
 
     /**

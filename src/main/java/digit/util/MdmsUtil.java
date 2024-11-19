@@ -1,24 +1,23 @@
 package digit.util;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import digit.config.Configuration;
-import digit.repository.ServiceRequestRepository;
+import digit.web.models.MdmsCriteriaReqV2;
+import digit.web.models.MdmsCriteriaV2;
+import digit.web.models.MdmsResponseV2;
+import digit.web.models.ServiceRequest;
 import lombok.extern.slf4j.Slf4j;
-import net.minidev.json.JSONArray;
 import org.egov.common.contract.request.RequestInfo;
-import org.egov.mdms.model.*;
-
+import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.util.ObjectUtils;
 import org.springframework.web.client.RestTemplate;
+import java.util.HashSet;
+import java.util.Set;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static digit.config.PGRConstants.*;
-
+/**
+ * Utility class for interacting with MDMS (Master Data Management System)
+ */
 @Slf4j
 @Component
 public class MdmsUtil {
@@ -27,95 +26,67 @@ public class MdmsUtil {
     private RestTemplate restTemplate;
 
     @Autowired
-    private ObjectMapper mapper;
-
-    @Autowired
     private Configuration configs;
 
-    @Autowired
-    private ServiceRequestRepository serviceRequestRepository;
+    /**
+     * Fetches MDMS data for the given service request, tenant ID, and service code.
+     *
+     * @param requestBody The service request containing request information
+     * @param tenantId    The tenant ID for which MDMS data is requested
+     * @param serviceCode The unique service code for filtering MDMS data
+     * @return MdmsResponseV2 containing the requested MDMS data
+     */
+    public MdmsResponseV2 fetchMdmsData(ServiceRequest requestBody, String tenantId, String serviceCode) {
+        RequestInfo requestInfo = requestBody.getRequestInfo();
 
-    public Map<String, Map<String, JSONArray>> fetchMdmsData(RequestInfo requestInfo, String tenantId,
-            String moduleName,
-            List<String> masterNameList) {
+        // Construct the MDMS API endpoint URI
         StringBuilder uri = new StringBuilder();
         uri.append(configs.getMdmsHost()).append(configs.getMdmsEndPoint());
-        MdmsCriteriaReq mdmsCriteriaReq = getMdmsRequest(requestInfo, tenantId, moduleName, masterNameList);
-        Object response = new HashMap<>();
-        MdmsResponse mdmsResponse = new MdmsResponse();
+
+        // Prepare the MDMS request criteria
+        MdmsCriteriaV2 mdmsCriteriav2 = getMdmsRequest(requestBody, tenantId, serviceCode);
+        MdmsCriteriaReqV2 mdmsCriteriaReq = MdmsCriteriaReqV2.builder()
+                .requestInfo(requestInfo)
+                .mdmsCriteria(mdmsCriteriav2)
+                .build();
+
+        MdmsResponseV2 mdmsResponse;
         try {
-            response = restTemplate.postForObject(uri.toString(), mdmsCriteriaReq, Map.class);
-            mdmsResponse = mapper.convertValue(response, MdmsResponse.class);
+            // Make a POST request to the MDMS API
+            mdmsResponse = restTemplate.postForObject(uri.toString(), mdmsCriteriaReq, MdmsResponseV2.class);
+
+            // Check if the response is null or empty
+            if (mdmsResponse == null || ObjectUtils.isEmpty(mdmsResponse)) {
+                throw new CustomException("MDMS_RESPONSE_EMPTY",
+                        "Mdms response is empty or invalid for the given tenantId");
+            }
         } catch (Exception e) {
-            log.error(ERROR_WHILE_FETCHING_FROM_MDMS, e);
+            // Handle exceptions and throw a custom exception for MDMS request failures
+            throw new CustomException("MDMS_REQUEST_FAILED",
+                    "Failed to fetch Mdms data for the given tenantId due to an error");
         }
-
-        return mdmsResponse.getMdmsRes();
-    }
-
-    private MdmsCriteriaReq getMdmsRequest(RequestInfo requestInfo, String tenantId,
-            String moduleName, List<String> masterNameList) {
-        List<MasterDetail> masterDetailList = new ArrayList<>();
-        for (String masterName : masterNameList) {
-            MasterDetail masterDetail = new MasterDetail();
-            masterDetail.setName(masterName);
-            masterDetailList.add(masterDetail);
-        }
-
-        ModuleDetail moduleDetail = new ModuleDetail();
-        moduleDetail.setMasterDetails(masterDetailList);
-        moduleDetail.setModuleName(moduleName);
-        List<ModuleDetail> moduleDetailList = new ArrayList<>();
-        moduleDetailList.add(moduleDetail);
-
-        MdmsCriteria mdmsCriteria = new MdmsCriteria();
-        mdmsCriteria.setTenantId(tenantId.split("\\.")[0]);
-        mdmsCriteria.setModuleDetails(moduleDetailList);
-
-        MdmsCriteriaReq mdmsCriteriaReq = new MdmsCriteriaReq();
-        mdmsCriteriaReq.setMdmsCriteria(mdmsCriteria);
-        mdmsCriteriaReq.setRequestInfo(requestInfo);
-
-        return mdmsCriteriaReq;
-    }
-
-    public Object mDMSCall(RequestInfo requestInfo, String tenantId, String moduleName, String masterName) {
-        MdmsCriteriaReq mdmsCriteriaReq = getMDMSRequest(requestInfo, tenantId, moduleName, masterName);
-        StringBuilder url = getMdmsSearchUrl();
-        Object result = serviceRequestRepository.fetchResult(url, mdmsCriteriaReq);
-        return result;
+        return mdmsResponse;
     }
 
     /**
-     * Creates MDMS request
-     * 
-     * @param requestInfo The RequestInfo of the Payment
-     * @param tenantId    The tenantId of the Payment
-     * @return MDMSCriteria Request
+     * Creates MDMS request criteria based on the service request, tenant ID, and
+     * unique identifier.
+     *
+     * @param requestBody      The service request containing request information
+     * @param tenantId         The tenant ID for which MDMS data is requested
+     * @param uniqueIdentifier The unique identifier for filtering MDMS data
+     * @return MdmsCriteriaV2 containing the request criteria for MDMS
      */
-    private MdmsCriteriaReq getMDMSRequest(RequestInfo requestInfo, String tenantId, String moduleName,
-            String masterName) {
+    public MdmsCriteriaV2 getMdmsRequest(ServiceRequest requestBody, String tenantId, String uniqueIdentifier) {
+        // Create a set of unique identifiers for MDMS filtering
+        Set<String> uniqueIdentifiers = new HashSet<>();
+        uniqueIdentifiers.add(uniqueIdentifier);
 
-        // master details for Collection module
-        List<MasterDetail> masterDetails = new ArrayList<>();
-
-        masterDetails.add(MasterDetail.builder().name(masterName).build());
-
-        ModuleDetail billingModuleDtls = ModuleDetail.builder().masterDetails(masterDetails)
-                .moduleName(moduleName).build();
-
-        List<ModuleDetail> moduleDetails = new ArrayList<>();
-        moduleDetails.add(billingModuleDtls);
-
-        MdmsCriteria mdmsCriteria = MdmsCriteria.builder().moduleDetails(moduleDetails).tenantId(tenantId)
+        // Build and return MDMS request criteria
+        MdmsCriteriaV2 mdmsCriteriaV2 = MdmsCriteriaV2.builder()
+                .tenantId(tenantId)
+                .uniqueIdentifiers(uniqueIdentifiers)
                 .build();
-
-        return MdmsCriteriaReq.builder().requestInfo(requestInfo).mdmsCriteria(mdmsCriteria).build();
-    }
-
-    private StringBuilder getMdmsSearchUrl() {
-        // return new StringBuilder().append(applicationProperties.getMdmsHost())
-        // .append(applicationProperties.getMdmsSearchEndpoint());
-        return new StringBuilder(configs.getMdmsHost());
+        return mdmsCriteriaV2;
     }
 }

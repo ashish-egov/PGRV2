@@ -39,8 +39,6 @@ public class PGRConstants {
     public static final String CITIZEN_LOWER = "Citizen";
     public static final String USER = "user";
 
-    public static final String PARSING_ERROR = "PARSING ERROR";
-    public static final String FAILED_TO_PARSE_BUSINESS_SERVICE_SEARCH = "Failed to parse response of workflow business service search";
     public static final String BUSINESS_SERVICE_NOT_FOUND = "BUSINESSSERVICE_NOT_FOUND";
     public static final String THE_BUSINESS_SERVICE = "The businessService ";
     public static final String NOT_FOUND = " is not found";
@@ -49,5 +47,11 @@ public class PGRConstants {
     public static final String USERTYPE_EMPLOYEE = "EMPLOYEE";
     public static final String USERTYPE_CITIZEN = "CITIZEN";
     public static final String MDMS_SERVICEDEF_SEARCH = "$.MdmsRes.RAINMAKER-PGR.ServiceDefs[?(@.serviceCode=='{SERVICEDEF}')]";
+
+    public static final String COMPLAINTS_RESOLVED = "complaintsResolved";
+    public static final String AVERAGE_RESOLUTION_TIME = "averageResolutionTime";
+    public static final String PGR_WF_REOPEN = "REOPEN";
+
+    public static final String HRMS_DEPARTMENT_JSONPATH = "$.Employees.*.assignments.*.department";
 
 }

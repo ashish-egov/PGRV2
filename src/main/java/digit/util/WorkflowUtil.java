@@ -2,6 +2,8 @@ package digit.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import digit.config.Configuration;
+import digit.config.ErrorConstants;
+
 import static digit.config.PGRConstants.*;
 import org.egov.common.contract.request.RequestInfo;
 import org.egov.common.contract.request.User;
@@ -28,6 +30,9 @@ public class WorkflowUtil {
     @Autowired
     private Configuration configs;
 
+    @Autowired
+    private ErrorConstants errorConstants;
+
     /**
      * Searches the BussinessService corresponding to the businessServiceCode
      * Returns applicable BussinessService for the given parameters
@@ -46,7 +51,8 @@ public class WorkflowUtil {
         try {
             response = mapper.convertValue(result, BusinessServiceResponse.class);
         } catch (IllegalArgumentException e) {
-            throw new CustomException(PARSING_ERROR, FAILED_TO_PARSE_BUSINESS_SERVICE_SEARCH);
+            throw new CustomException(errorConstants.PARSING_ERROR_CODE,
+                    errorConstants.FAILED_TO_PARSE_BUSINESS_SERVICE_SEARCH);
         }
 
         if (CollectionUtils.isEmpty(response.getBusinessServices()))

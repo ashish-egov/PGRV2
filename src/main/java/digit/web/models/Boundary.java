@@ -27,16 +27,12 @@ import lombok.Builder;
 public class Boundary {
         @JsonProperty("code")
         @NotNull
-
         private String code = null;
 
         @JsonProperty("name")
-        @NotNull
-
         private String name = null;
 
         @JsonProperty("label")
-
         private String label = null;
 
         @JsonProperty("latitude")

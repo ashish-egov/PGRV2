@@ -1,17 +1,27 @@
 package digit.validator;
 
 import org.egov.common.contract.request.RequestInfo;
-import org.egov.common.contract.request.User;
 import org.egov.tracer.model.CustomException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import com.jayway.jsonpath.JsonPath;
+import org.springframework.util.CollectionUtils;
+
+import com.fasterxml.jackson.databind.JsonNode;
 import digit.config.Configuration;
+import digit.config.ErrorConstants;
 import digit.config.PGRConstants;
+import digit.repository.PGRRepository;
+import digit.util.HRMSUtil;
+import digit.util.MdmsUtil;
+import digit.web.models.MdmsResponseV2;
+import digit.web.models.PGREntity;
 import digit.web.models.RequestSearchCriteria;
+import digit.web.models.Service;
 import digit.web.models.ServiceRequest;
+import digit.web.models.User;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +34,18 @@ public class PgrValidator {
     @Autowired
     private Configuration config;
 
+    @Autowired
+    private MdmsUtil mdmsUtil;
+
+    @Autowired
+    private PGRRepository pgrRepository;
+
+    @Autowired
+    private HRMSUtil hrmsUtil;
+
+    @Autowired
+    private ErrorConstants errorConstants;
+
     /**
      * This method validates the creation request for the ServiceRequest object.
      * It ensures that both citizen and source are valid.
@@ -34,11 +56,7 @@ public class PgrValidator {
         // Validate the citizen object and source within the service request
         validateCitizen(requestBody);
         validateSource(requestBody.getPgrEntity().getService().getSource());
-        // validateMDMS(requestBody, requestBody);
-    }
-
-    public void validateUpdateRequest(ServiceRequest requestBody) {
-
+        validateMDMS(requestBody);
     }
 
     /**
@@ -104,18 +122,18 @@ public class PgrValidator {
 
     public void validateSearch(RequestInfo requestInfo, RequestSearchCriteria criteria) {
         if (criteria.getTenantId() == null)
-            throw new CustomException("INVALID_SEARCH", "TenantId is mandatory search param");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "TenantId is mandatory search param");
         validateSearchParam(requestInfo, criteria);
     }
 
     private void validateSearchParam(RequestInfo requestInfo, RequestSearchCriteria criteria) {
 
         if (requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE") && criteria.isEmpty())
-            throw new CustomException("INVALID_SEARCH", "Search without params is not allowed");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "Search without params is not allowed");
 
         if (requestInfo.getUserInfo().getType().equalsIgnoreCase("EMPLOYEE")
                 && criteria.getTenantId().split("\\.").length == 1) {
-            throw new CustomException("INVALID_SEARCH", "Employees cannot perform state level searches.");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "Employees cannot perform state level searches.");
         }
 
         String allowedParamStr = null;
@@ -126,25 +144,26 @@ public class PgrValidator {
                 || requestInfo.getUserInfo().getType().equalsIgnoreCase("SYSTEM"))
             allowedParamStr = config.getAllowedEmployeeSearchParameters();
         else
-            throw new CustomException("INVALID SEARCH", "The userType: " + requestInfo.getUserInfo().getType() +
-                    " does not have any search config");
+            throw new CustomException(errorConstants.INVALID_SEARCH,
+                    "The userType: " + requestInfo.getUserInfo().getType() +
+                            " does not have any search config");
 
         List<String> allowedParams = Arrays.asList(allowedParamStr.split(","));
 
         if (criteria.getServiceCode() != null && !allowedParams.contains("serviceCode"))
-            throw new CustomException("INVALID SEARCH", "Search on serviceCode is not allowed");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "Search on serviceCode is not allowed");
 
         if (criteria.getServiceRequestId() != null && !allowedParams.contains("serviceRequestId"))
-            throw new CustomException("INVALID SEARCH", "Search on serviceRequestId is not allowed");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "Search on serviceRequestId is not allowed");
 
         if (criteria.getApplicationStatus() != null && !allowedParams.contains("applicationStatus"))
-            throw new CustomException("INVALID SEARCH", "Search on applicationStatus is not allowed");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "Search on applicationStatus is not allowed");
 
         if (criteria.getMobileNumber() != null && !allowedParams.contains("mobileNumber"))
-            throw new CustomException("INVALID SEARCH", "Search on mobileNumber is not allowed");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "Search on mobileNumber is not allowed");
 
         if (criteria.getIds() != null && !allowedParams.contains("ids"))
-            throw new CustomException("INVALID SEARCH", "Search on ids is not allowed");
+            throw new CustomException(errorConstants.INVALID_SEARCH, "Search on ids is not allowed");
 
     }
 
@@ -158,29 +177,95 @@ public class PgrValidator {
      *                 validate
      * @param mdmsData The MDMS data (JSON) to check against
      */
-    // private void validateMDMS(ServiceRequest requestBody) {
-    // Object mdmsData = fetchMdmsData(requestBody);
-    // // Fetch the service code from the request
-    // String serviceCode =
-    // requestBody.getPgrEntity().getService().getServiceCode();
+    private void validateMDMS(ServiceRequest requestBody) {
+        // Fetch MDMS data based on the request
+        MdmsResponseV2 mdmsData = mdmsUtil.fetchMdmsData(
+                requestBody,
+                requestBody.getPgrEntity().getService().getTenantId(),
+                requestBody.getPgrEntity().getService().getServiceCode());
 
-    // // Define the JSONPath to search for the service definition in MDMS
-    // String jsonPath = pgrConstants.MDMS_SERVICEDEF_SEARCH.replace("{SERVICEDEF}",
-    // serviceCode);
-    // List<Object> res = null;
+        // Check if the fetched MDMS data is null or contains no entries
+        if (mdmsData == null || mdmsData.getMdms() == null || mdmsData.getMdms().isEmpty()) {
+            throw new CustomException(
+                    "INVALID_SERVICECODE",
+                    "The service code: " + requestBody.getPgrEntity().getService().getServiceCode()
+                            + " is not present in MDMS");
+        }
+    }
 
-    // try {
-    // // Use JSONPath to search the mdmsData for the relevant service code
-    // res = JsonPath.read(mdmsData, jsonPath);
-    // } catch (Exception e) {
-    // // If JSON parsing fails, throw an exception
-    // throw new CustomException("JSONPATH_ERROR", "Failed to parse mdms response");
-    // }
+    public void validateUpdate(ServiceRequest request) {
+        String id = request.getPgrEntity().getService().getId();
+        validateSource(request.getPgrEntity().getService().getSource());
+        validateMDMSAndDepartment(request);
+        validateReOpen(request);
+        RequestSearchCriteria criteria = RequestSearchCriteria.builder().ids(Collections.singleton(id)).build();
+        criteria.setIsPlainSearch(false);
+        List<PGREntity> serviceWrappers = pgrRepository.getServiceWrappers(criteria);
 
-    // // If the response is empty, it means the service code was not found in MDMS
-    // if (res == null || res.isEmpty()) {
-    // throw new CustomException("INVALID_SERVICECODE",
-    // "The service code: " + serviceCode + " is not present in MDMS");
-    // }
-    // }
+        if (CollectionUtils.isEmpty(serviceWrappers))
+            throw new CustomException("INVALID_UPDATE", "The record that you are trying to update does not exists");
+
+    }
+
+    private void validateMDMSAndDepartment(ServiceRequest requestBody) {
+        MdmsResponseV2 mdmsData = mdmsUtil.fetchMdmsData(
+                requestBody,
+                requestBody.getPgrEntity().getService().getTenantId(),
+                requestBody.getPgrEntity().getService().getServiceCode());
+
+        // Check if the fetched MDMS data is null or contains no entries
+        if (mdmsData == null || mdmsData.getMdms() == null || mdmsData.getMdms().isEmpty()) {
+            throw new CustomException(
+                    "INVALID_SERVICECODE",
+                    "The service code: " + requestBody.getPgrEntity().getService().getServiceCode()
+                            + " is not present in MDMS");
+        }
+
+        List<String> assignes = requestBody.getPgrEntity().getWorkflow().getAssignes();
+
+        if (CollectionUtils.isEmpty(assignes))
+            return;
+
+        List<String> departments = hrmsUtil.getDepartment(assignes, requestBody.getRequestInfo());
+
+        JsonNode dataNode = mdmsData.getMdms().get(0).getData(); // Get the `data` JsonNode
+
+        String departmentServiceCode = null;
+        if (dataNode != null && dataNode.has("ServiceCode")) {
+            departmentServiceCode = dataNode.get("ServiceCode").asText();
+        }
+
+        Map<String, String> errorMap = new HashMap<>();
+
+        if (!departments.contains(departmentServiceCode))
+            errorMap.put("INVALID_ASSIGNMENT",
+                    "The application cannot be assigned to employee of department: " + departments.toString());
+
+        if (!errorMap.isEmpty())
+            throw new CustomException(errorMap);
+
+    }
+
+    /**
+     *
+     * @param request
+     */
+    private void validateReOpen(ServiceRequest request) {
+
+        if (!request.getPgrEntity().getWorkflow().getAction().equalsIgnoreCase(pgrConstants.PGR_WF_REOPEN))
+            return;
+
+        Service service = request.getPgrEntity().getService();
+        RequestInfo requestInfo = request.getRequestInfo();
+        Long lastModifiedTime = service.getAuditDetails().getLastModifiedTime();
+
+        if (requestInfo.getUserInfo().getType().equalsIgnoreCase(pgrConstants.USERTYPE_CITIZEN)) {
+            if (!requestInfo.getUserInfo().getUuid().equalsIgnoreCase(service.getAccountId()))
+                throw new CustomException("INVALID_ACTION", "Not authorized to re-open the complain");
+        }
+
+        if (System.currentTimeMillis() - lastModifiedTime > config.getComplainMaxIdleTime())
+            throw new CustomException("INVALID_ACTION", "Complaint is closed");
+
+    }
 }

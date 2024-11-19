@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import org.egov.common.contract.models.AuditDetails;
-import org.egov.common.contract.request.User;
 import org.springframework.validation.annotation.Validated;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;

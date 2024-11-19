@@ -90,6 +90,10 @@ public class Configuration {
     @Value("${pgr.kafka.create.topic}")
     private String pgrCreateTopic;
 
+    // Update Pgr Topic
+    @Value("${pgr.kafka.update.topic}")
+    private String pgrUpdateTopic;
+
     // Allowed Search Parameters
     @Value("${citizen.allowed.search.params}")
     private String allowedCitizenSearchParameters;
@@ -105,4 +109,10 @@ public class Configuration {
 
     @Value("${pgr.search.max.limit}")
     private Integer maxLimit;
+
+    @Value("${egov.dynamicdata.period}")
+    private String numberOfDays;
+
+    @Value("${pgr.complain.idle.time}")
+    private Long complainMaxIdleTime;
 }

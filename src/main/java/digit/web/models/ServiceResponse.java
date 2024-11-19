@@ -27,7 +27,6 @@ import lombok.Builder;
 @Builder
 public class ServiceResponse {
         @JsonProperty("responseInfo")
-
         @Valid
         private ResponseInfo responseInfo = null;
 
