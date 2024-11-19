@@ -229,22 +229,46 @@ public class WorkflowService {
         return businessIdToWorkflow;
     }
 
+    /**
+     * Calls the workflow service with the given request and returns the current
+     * state of the process.
+     *
+     * @param workflowReq The request to send to the workflow service.
+     * @return The current state of the process.
+     */
     private State callWorkFlow(ProcessInstanceRequest workflowReq) {
         ProcessInstanceResponse response = null;
         StringBuilder url = new StringBuilder(
                 pgrConfiguration.getWfHost().concat(pgrConfiguration.getWfTransitionPath()));
         Object optional = repository.fetchResult(url, workflowReq);
+
+        // Convert the response to ProcessInstanceResponse
         response = mapper.convertValue(optional, ProcessInstanceResponse.class);
+
+        // Return the current state of the process
         return response.getProcessInstances().get(0).getState();
     }
 
+    /**
+     * Creates the URL for searching the workflow service for a process instance.
+     *
+     * @param tenantId         The tenant ID to search for.
+     * @param serviceRequestId The ID of the service request to search for.
+     * @return The URL string for searching the workflow service.
+     */
     public StringBuilder getprocessInstanceSearchURL(String tenantId, String serviceRequestId) {
+
+        // Construct the URL
         StringBuilder url = new StringBuilder(pgrConfiguration.getWfHost());
+
+        // Append the full path
         url.append(pgrConfiguration.getWfProcessInstanceSearchPath());
         url.append("?tenantId=");
         url.append(tenantId);
         url.append("&businessIds=");
         url.append(serviceRequestId);
+
+        // Return the constructed URL
         return url;
     }
 
